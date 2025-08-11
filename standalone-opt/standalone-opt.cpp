@@ -12,6 +12,7 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 #include "Standalone/StandaloneDialect.h"
 #include "Standalone/StandalonePasses.h"
@@ -24,7 +25,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   registry.insert<mlir::standalone::StandaloneDialect,
                   mlir::arith::ArithDialect, mlir::func::FuncDialect,
-                  mlir::gpu::GPUDialect>();
+                  mlir::gpu::GPUDialect, mlir::memref::MemRefDialect>();
   // Add the following to include *all* MLIR Core dialects, or selectively
   // include what you need like above. You only need to register dialects that
   // will be *parsed* by the tool, not the one generated
