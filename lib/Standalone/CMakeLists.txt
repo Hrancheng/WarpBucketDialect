@@ -16,3 +16,4 @@ add_mlir_dialect_library(MLIRStandalone
         MLIRInferTypeOpInterface
         MLIRFuncDialect
         )
+add_subdirectory(Transforms)

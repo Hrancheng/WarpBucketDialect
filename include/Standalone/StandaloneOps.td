@@ -40,4 +40,17 @@ def Standalone_FooOp : Standalone_Op<"foo", [Pure,
     }];
 }
 
+// ---- add a minimal op -------------------------------------------------------
+def Standalone_AddOp
+  : Op<Standalone_Dialect, "add", [Pure, SameOperandsAndResultType]> {
+  let summary = "add two values with the same type";
+  let arguments = (ins AnyType:$lhs, AnyType:$rhs);
+  let results   = (outs AnyType:$res);
+  // 结果类型 = 操作数类型（由 SameOperandsAndResultType 保证/推断）
+  let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($res)";
+  let hasVerifier = 1;
+}
+
 #endif // STANDALONE_OPS
+
+

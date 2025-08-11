@@ -20,6 +20,10 @@ namespace standalone {
 
 #define GEN_PASS_REGISTRATION
 #include "Standalone/StandalonePasses.h.inc"
+
+// Declare the function to register standalone passes
+void registerStandalonePasses();
+
 } // namespace standalone
 } // namespace mlir
 

@@ -17,7 +17,7 @@
 
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
-  mlir::standalone::registerPasses();
+  mlir::standalone::registerStandalonePasses();
   // TODO: Register standalone passes here.
 
   mlir::DialectRegistry registry;

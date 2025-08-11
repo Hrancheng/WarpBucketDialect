@@ -11,3 +11,13 @@
 
 #define GET_OP_CLASSES
 #include "Standalone/StandaloneOps.cpp.inc"
+
+using namespace mlir;
+using namespace mlir::standalone;
+
+LogicalResult AddOp::verify() {
+  if (getLhs().getType() != getRhs().getType() ||
+      getRes().getType() != getLhs().getType())
+    return emitOpError("lhs/rhs/result types must match");
+  return success();
+}
