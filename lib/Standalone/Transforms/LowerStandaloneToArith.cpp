@@ -5,8 +5,9 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Support/LLVM.h"
 
-// Forward declaration
+// Forward declarations
 std::unique_ptr<mlir::Pass> createLowerArithToGPUPass();
+std::unique_ptr<mlir::Pass> createUniformityAnalysisPass();
 
 namespace {
 
@@ -94,6 +95,12 @@ namespace mlir {
       ::mlir::registerPass(
           []() -> std::unique_ptr<::mlir::Pass> {
             return createLowerArithToGPUPass();
+          });
+      
+      // Register the uniformity analysis pass
+      ::mlir::registerPass(
+          []() -> std::unique_ptr<::mlir::Pass> {
+            return createUniformityAnalysisPass();
           });
     }
     
