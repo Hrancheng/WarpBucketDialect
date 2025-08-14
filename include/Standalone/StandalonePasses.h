@@ -30,6 +30,9 @@ std::unique_ptr<Pass> createUniformityAnalysisPass();
 /// Create a pass for converting divergent branches to predicated operations.
 std::unique_ptr<Pass> createIfConversionPass();
 
+/// Create a pass for lowering warp reduce operations to GPU shuffle operations.
+std::unique_ptr<Pass> createLowerWarpReduceToGPUPass();
+
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//

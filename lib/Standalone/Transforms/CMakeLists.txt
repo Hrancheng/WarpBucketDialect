@@ -3,6 +3,7 @@ add_mlir_library(MLIRStandaloneTransforms
   LowerArithToGPU.cpp
   UniformityAnalysis.cpp
   IfConversion.cpp
+  LowerWarpReduceToGPU.cpp
   LINK_LIBS PUBLIC
     MLIRStandalone
     MLIRIR

@@ -9,6 +9,7 @@
 std::unique_ptr<mlir::Pass> createLowerArithToGPUPass();
 std::unique_ptr<mlir::Pass> createUniformityAnalysisPass();
 std::unique_ptr<mlir::Pass> createIfConversionPass();
+std::unique_ptr<mlir::Pass> createLowerWarpReduceToGPUPass();
 
 namespace {
 
@@ -108,6 +109,12 @@ namespace mlir {
       ::mlir::registerPass(
           []() -> std::unique_ptr<::mlir::Pass> {
             return createIfConversionPass();
+          });
+      
+      // Register the warp reduction lowering pass
+      ::mlir::registerPass(
+          []() -> std::unique_ptr<::mlir::Pass> {
+            return createLowerWarpReduceToGPUPass();
           });
     }
     

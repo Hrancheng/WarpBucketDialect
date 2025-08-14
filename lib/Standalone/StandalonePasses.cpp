@@ -47,6 +47,13 @@ void registerStandalonePasses() {
       [](OpPassManager &pm) {
         pm.addPass(createIfConversionPass());
       });
+
+  PassPipelineRegistration<>(
+      "lower-warp-reduce-to-gpu",
+      "Lower warp reduce operations to GPU shuffle operations",
+      [](OpPassManager &pm) {
+        pm.addPass(createLowerWarpReduceToGPUPass());
+      });
 }
 
 } // namespace standalone

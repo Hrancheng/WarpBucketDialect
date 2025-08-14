@@ -1,23 +1,48 @@
-//===- StandaloneOps.cpp - Standalone dialect ops ---------------*- C++ -*-===//
-//
-// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
+//===----------------------------------------------------------------------===//
+// Standalone Operations
 //===----------------------------------------------------------------------===//
 
 #include "Standalone/StandaloneOps.h"
 #include "Standalone/StandaloneDialect.h"
-
-#define GET_OP_CLASSES
-#include "Standalone/StandaloneOps.cpp.inc"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/TypeUtilities.h"
+#include "mlir/Support/LogicalResult.h"
 
 using namespace mlir;
 using namespace mlir::standalone;
 
+#define GET_OP_CLASSES
+#include "Standalone/StandaloneOps.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// AddOp
+//===----------------------------------------------------------------------===//
+
 LogicalResult AddOp::verify() {
-  if (getLhs().getType() != getRhs().getType() ||
-      getRes().getType() != getLhs().getType())
-    return emitOpError("lhs/rhs/result types must match");
+  // Check that the operands have the same type
+  if (getLhs().getType() != getRhs().getType()) {
+    return emitOpError("operands must have the same type");
+  }
+  
+  // Check that the result type matches the operand type
+  if (getRes().getType() != getLhs().getType()) {
+    return emitOpError("result type must match operand type");
+  }
+  
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// WarpReduceOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult WarpReduceOp::verify() {
+  // For now, just verify that the result type matches the input type
+  // The kind and width attributes will be handled in the lowering pass
+  if (getResult().getType() != getValue().getType()) {
+    return emitOpError("result type must match input type");
+  }
+  
   return success();
 }

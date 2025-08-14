@@ -40,14 +40,30 @@ def Standalone_FooOp : Standalone_Op<"foo", [Pure,
     }];
 }
 
-// ---- add a minimal op -------------------------------------------------------
-def Standalone_AddOp
-  : Op<Standalone_Dialect, "add", [Pure, SameOperandsAndResultType]> {
+def Standalone_AddOp : Standalone_Op<"add", [Pure, SameOperandsAndResultType]> {
   let summary = "add two values with the same type";
   let arguments = (ins AnyType:$lhs, AnyType:$rhs);
   let results   = (outs AnyType:$res);
   // 结果类型 = 操作数类型（由 SameOperandsAndResultType 保证/推断）
   let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($res)";
+  let hasVerifier = 1;
+}
+
+def Standalone_WarpReduceOp : Standalone_Op<"warp_reduce", [Pure, SameOperandsAndResultType]> {
+  let summary = "Warp-level reduction operation";
+  let description = [{
+    The `wb.warp_reduce` operation performs a reduction across all threads in a warp.
+    Supported reduction kinds: add, mul, min, max, and, or, xor.
+    The width attribute specifies the warp size (32 for NVVM, 64 for ROCDL).
+  }];
+
+  let arguments = (ins AnyType:$value);
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($result)
+  }];
+
   let hasVerifier = 1;
 }
 

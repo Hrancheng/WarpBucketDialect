@@ -70,82 +70,78 @@ struct IfConversionPattern : public OpRewritePattern<scf::IfOp> {
       return failure();
     }
 
-    // Step 3: Clone operations to parent block before the if
+    // Step 3: Check for non-speculatable operations (barrier/atomic/call/exceptional side effects)
+    if (hasNonSpeculatableOperations(ifOp)) {
+      llvm::errs() << "IfConversion: Skipping if with non-speculatable operations\n";
+      return failure();
+    }
+
+    // Step 4: Clone operations to parent block before the if
     rewriter.setInsertionPoint(ifOp);
     
-    // Clone then branch operations
-    SmallVector<Value> thenClonedValues;
+    // Create IRMapping for proper value mapping
+    IRMapping thenMap, elseMap;
+    
+    // Map external values (function arguments, block arguments, etc.) to themselves
+    // This ensures that values defined outside the if regions can be found
+    for (Value arg : ifOp->getOperands()) {
+      thenMap.map(arg, arg);
+      elseMap.map(arg, arg);
+    }
+    
+    // Also map all values that appear in yield operations to themselves
+    // This handles cases where yield operands are function arguments or other external values
+    for (Value thenVal : thenYields) {
+      if (!thenMap.contains(thenVal)) {
+        thenMap.map(thenVal, thenVal);
+      }
+    }
+    for (Value elseVal : elseYields) {
+      if (!elseMap.contains(elseVal)) {
+        elseMap.map(elseVal, elseVal);
+      }
+    }
+    
+    // Clone then branch operations with proper mapping
     if (ifOp.getThenRegion().hasOneBlock()) {
       Block &thenBlock = ifOp.getThenRegion().front();
-      
-      // First, clone operations that produce values used in yield
       for (Operation &op : thenBlock.without_terminator()) {
-        if (!isTriviallySpeculatable(&op)) {
-          llvm::errs() << "IfConversion: Non-speculatable operation in then branch: " << op.getName() << "\n";
-          return failure();
-        }
-        
-        // Clone the operation
-        Operation *cloned = rewriter.clone(op);
+        // Clone the operation with mapping
+        Operation *cloned = rewriter.clone(op, thenMap);
         llvm::errs() << "IfConversion: Cloned then operation: " << op.getName() << " -> " << cloned->getName() << "\n";
         
-        // Store the cloned results
-        for (Value clonedResult : cloned->getResults()) {
-          thenClonedValues.push_back(clonedResult);
-          llvm::errs() << "IfConversion: Stored then cloned result: " << clonedResult << "\n";
+        // Map the original results to cloned results
+        for (auto [origResult, clonedResult] : llvm::zip(op.getResults(), cloned->getResults())) {
+          thenMap.map(origResult, clonedResult);
+          llvm::errs() << "IfConversion: Mapped then result: " << origResult << " -> " << clonedResult << "\n";
         }
       }
     }
 
-    // Clone else branch operations
-    SmallVector<Value> elseClonedValues;
+    // Clone else branch operations with proper mapping
     if (ifOp.getElseRegion().hasOneBlock()) {
       Block &elseBlock = ifOp.getElseRegion().front();
-      
-      // First, clone operations that produce values used in yield
       for (Operation &op : elseBlock.without_terminator()) {
-        if (!isTriviallySpeculatable(&op)) {
-          llvm::errs() << "IfConversion: Non-speculatable operation in else branch: " << op.getName() << "\n";
-          return failure();
-        }
-        
-        // Clone the operation
-        Operation *cloned = rewriter.clone(op);
+        // Clone the operation with mapping
+        Operation *cloned = rewriter.clone(op, elseMap);
         llvm::errs() << "IfConversion: Cloned else operation: " << op.getName() << " -> " << cloned->getName() << "\n";
         
-        // Store the cloned results
-        for (Value clonedResult : cloned->getResults()) {
-          elseClonedValues.push_back(clonedResult);
-          llvm::errs() << "IfConversion: Stored else cloned result: " << clonedResult << "\n";
+        // Map the original results to cloned results
+        for (auto [origResult, clonedResult] : llvm::zip(op.getResults(), cloned->getResults())) {
+          elseMap.map(origResult, clonedResult);
+          llvm::errs() << "IfConversion: Mapped else result: " << origResult << " -> " << clonedResult << "\n";
         }
       }
     }
 
-    // Step 4: Create select operations for each result
+    // Step 5: Create select operations for each result
     SmallVector<Value> newResults;
     for (auto [thenVal, elseVal, result] : llvm::zip(thenYields, elseYields, results)) {
-      // Find the corresponding cloned values by matching types
-      Value thenCloned = nullptr;
-      Value elseCloned = nullptr;
-      
-      // Find then value
-      for (Value clonedVal : thenClonedValues) {
-        if (clonedVal.getType() == thenVal.getType()) {
-          thenCloned = clonedVal;
-          break;
-        }
-      }
-      
-      // Find else value
-      for (Value clonedVal : elseClonedValues) {
-        if (clonedVal.getType() == elseVal.getType()) {
-          elseCloned = clonedVal;
-          break;
-        }
-      }
+      // Use the IRMapping to find the cloned values
+      Value thenCloned = thenMap.lookup(thenVal);
+      Value elseCloned = elseMap.lookup(elseVal);
       
       // If we didn't find cloned values, the values might already be defined outside the if
-      // This can happen with constants or values defined in the parent block
       if (!thenCloned) {
         // Check if the value is defined outside the if statement
         if (thenVal.getDefiningOp() && thenVal.getDefiningOp()->getParentOp() != ifOp) {
@@ -168,13 +164,13 @@ struct IfConversionPattern : public OpRewritePattern<scf::IfOp> {
         llvm::errs() << "  elseVal: " << elseVal << " -> elseCloned: " << (elseCloned ? "found" : "not found") << "\n";
         
         // Debug: print what we have
-        llvm::errs() << "  Then cloned values:\n";
-        for (Value val : thenClonedValues) {
-          llvm::errs() << "    " << val << "\n";
+        llvm::errs() << "  Then map contents:\n";
+        for (auto &mapping : thenMap.getValueMap()) {
+          llvm::errs() << "    " << mapping.first << " -> " << mapping.second << "\n";
         }
-        llvm::errs() << "  Else cloned values:\n";
-        for (Value val : elseClonedValues) {
-          llvm::errs() << "    " << val << "\n";
+        llvm::errs() << "  Else map contents:\n";
+        for (auto &mapping : elseMap.getValueMap()) {
+          llvm::errs() << "    " << mapping.first << " -> " << mapping.second << "\n";
         }
         
         return failure();
@@ -188,7 +184,7 @@ struct IfConversionPattern : public OpRewritePattern<scf::IfOp> {
       llvm::errs() << "IfConversion: Created select for result type: " << result.getType() << "\n";
     }
 
-    // Step 5: Replace the if operation with the new results
+    // Step 6: Replace the if operation with the new results
     rewriter.replaceOp(ifOp, newResults);
     
     llvm::errs() << "IfConversion: Successfully converted divergent branch to predicated operations\n";
@@ -199,14 +195,50 @@ private:
   bool isTriviallySpeculatable(Operation *op) const {
     // Check if operation is safe to speculate
     if (isa<arith::ConstantOp>(op)) return true;
+    
+    // Integer arithmetic operations
     if (isa<arith::AddIOp>(op)) return true;
     if (isa<arith::SubIOp>(op)) return true;
     if (isa<arith::MulIOp>(op)) return true;
     if (isa<arith::CmpIOp>(op)) return true;
+    
+    // Floating-point arithmetic operations
+    if (isa<arith::AddFOp>(op)) return true;
+    if (isa<arith::SubFOp>(op)) return true;
+    if (isa<arith::MulFOp>(op)) return true;
+    if (isa<arith::CmpFOp>(op)) return true;
+    
+    // Other safe operations
     if (isa<arith::SelectOp>(op)) return true;
     
     // For now, be conservative - only allow basic arithmetic operations
     // Later we can add MemoryEffects analysis for load/store operations
+    return false;
+  }
+
+  bool hasNonSpeculatableOperations(scf::IfOp ifOp) const {
+    // Check then region
+    if (ifOp.getThenRegion().hasOneBlock()) {
+      Block &thenBlock = ifOp.getThenRegion().front();
+      for (Operation &op : thenBlock.without_terminator()) {
+        if (!isTriviallySpeculatable(&op)) {
+          llvm::errs() << "IfConversion: Non-speculatable operation in then branch: " << op.getName() << "\n";
+          return true;
+        }
+      }
+    }
+    
+    // Check else region
+    if (ifOp.getElseRegion().hasOneBlock()) {
+      Block &elseBlock = ifOp.getElseRegion().front();
+      for (Operation &op : elseBlock.without_terminator()) {
+        if (!isTriviallySpeculatable(&op)) {
+          llvm::errs() << "IfConversion: Non-speculatable operation in else branch: " << op.getName() << "\n";
+          return true;
+        }
+      }
+    }
+    
     return false;
   }
 };
