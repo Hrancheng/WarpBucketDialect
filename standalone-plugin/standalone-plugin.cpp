@@ -26,7 +26,7 @@ mlirGetDialectPluginInfo() {
   return {MLIR_PLUGIN_API_VERSION, "Standalone", LLVM_VERSION_STRING,
           [](DialectRegistry *registry) {
             registry->insert<mlir::standalone::StandaloneDialect>();
-            mlir::standalone::registerPasses();
+            mlir::standalone::registerStandalonePasses();
           }};
 }
 
@@ -34,5 +34,5 @@ mlirGetDialectPluginInfo() {
 /// Necessary symbol to register the pass plugin.
 extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo mlirGetPassPluginInfo() {
   return {MLIR_PLUGIN_API_VERSION, "StandalonePasses", LLVM_VERSION_STRING,
-          []() { mlir::standalone::registerPasses(); }};
+          []() { mlir::standalone::registerStandalonePasses(); }};
 }

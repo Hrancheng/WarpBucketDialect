@@ -8,6 +8,7 @@
 // Forward declarations
 std::unique_ptr<mlir::Pass> createLowerArithToGPUPass();
 std::unique_ptr<mlir::Pass> createUniformityAnalysisPass();
+std::unique_ptr<mlir::Pass> createIfConversionPass();
 
 namespace {
 
@@ -101,6 +102,12 @@ namespace mlir {
       ::mlir::registerPass(
           []() -> std::unique_ptr<::mlir::Pass> {
             return createUniformityAnalysisPass();
+          });
+      
+      // Register the if-conversion pass
+      ::mlir::registerPass(
+          []() -> std::unique_ptr<::mlir::Pass> {
+            return createIfConversionPass();
           });
     }
     
