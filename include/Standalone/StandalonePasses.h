@@ -33,6 +33,12 @@ std::unique_ptr<Pass> createIfConversionPass();
 /// Create a pass for lowering warp reduce operations to GPU shuffle operations.
 std::unique_ptr<Pass> createLowerWarpReduceToGPUPass();
 
+/// Create a pass for implementing dual-path kernel strategy.
+std::unique_ptr<Pass> createDualPathKernelPass();
+
+/// Create a pass for automatically inserting warp_reduce operations.
+std::unique_ptr<Pass> createAutoWarpReduceInsertionPass();
+
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//

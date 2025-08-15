@@ -266,17 +266,12 @@ struct IfConversionPass : public PassWrapper<IfConversionPass, OperationPass<Mod
 };
 } // namespace
 
+namespace mlir {
+namespace standalone {
+
 std::unique_ptr<Pass> createIfConversionPass() {
   return std::make_unique<IfConversionPass>();
 }
 
-namespace mlir {
-namespace standalone {
-void registerIfConversionPass() {
-  ::mlir::registerPass(
-      []() -> std::unique_ptr<::mlir::Pass> {
-        return createIfConversionPass();
-      });
-}
 } // namespace standalone
 } // namespace mlir 

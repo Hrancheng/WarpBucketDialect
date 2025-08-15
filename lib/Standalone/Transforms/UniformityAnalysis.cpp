@@ -10,6 +10,7 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
+#include "Standalone/StandaloneOps.h"
 
 using namespace mlir;
 
@@ -118,9 +119,7 @@ private:
     bool changed = true;
     int iteration = 0;
     
-    // TEMPORARILY DISABLE ITERATION LOOP TO DEBUG
-    llvm::errs() << "UniformityAnalysis: TEMPORARILY DISABLING ITERATION LOOP\n";
-    /*
+    // Process operations until convergence
     while (changed && iteration < 100) { // Safety limit
       changed = false;
       iteration++;
@@ -139,7 +138,6 @@ private:
         changed = true;
       }
     }
-    */
     
     if (iteration >= 100) {
       llvm::errs() << "UniformityAnalysis: Warning: Reached iteration limit\n";
@@ -413,6 +411,47 @@ private:
         if (lattice[condition] == LatticeVal::Varying) {
           op->setAttr("wb.divergent", UnitAttr::get(op->getContext()));
           llvm::errs() << "UniformityAnalysis: Marking if statement as divergent\n";
+          
+          // AUTOMATIC LONG ROW DETECTION: Check if this if statement contains warp_reduce
+          // This indicates it should use the long row strategy
+          bool hasWarpReduce = false;
+          bool hasMemRefLoad = false;
+          
+          // Check the else branch for warp_reduce operations (long row pattern)
+          if (ifOp.getElseRegion().empty() == false) {
+            ifOp.getElseRegion().front().walk([&](Operation *innerOp) {
+              if (isa<standalone::WarpReduceOp>(innerOp)) {
+                hasWarpReduce = true;
+                llvm::errs() << "UniformityAnalysis: Found warp_reduce in else branch - marking as long row\n";
+              }
+              if (isa<memref::LoadOp>(innerOp)) {
+                hasMemRefLoad = true;
+              }
+            });
+          }
+          
+          // Check the then branch for warp_reduce operations (alternative long row pattern)
+          ifOp.getThenRegion().walk([&](Operation *innerOp) {
+            if (isa<standalone::WarpReduceOp>(innerOp)) {
+              hasWarpReduce = true;
+              llvm::errs() << "UniformityAnalysis: Found warp_reduce in then branch - marking as long row\n";
+            }
+            if (isa<memref::LoadOp>(innerOp)) {
+              hasMemRefLoad = true;
+            }
+          });
+          
+          // Mark as long row if it contains warp_reduce operations
+          if (hasWarpReduce) {
+            op->setAttr("wb.long_row", UnitAttr::get(op->getContext()));
+            llvm::errs() << "UniformityAnalysis: Marking if statement as long row strategy\n";
+          }
+          
+          // Mark as short row if it contains memref.load but no warp_reduce
+          if (hasMemRefLoad && !hasWarpReduce) {
+            op->setAttr("wb.short_row", UnitAttr::get(op->getContext()));
+            llvm::errs() << "UniformityAnalysis: Marking if statement as short row strategy\n";
+          }
         }
       }
       
@@ -470,19 +509,11 @@ private:
 
 } // namespace
 
-std::unique_ptr<Pass> createUniformityAnalysisPass() {
-  return std::make_unique<UniformityAnalysisPass>();
-}
-
-// Register the pass
 namespace mlir {
 namespace standalone {
 
-void registerUniformityAnalysisPass() {
-  ::mlir::registerPass(
-      []() -> std::unique_ptr<::mlir::Pass> {
-        return createUniformityAnalysisPass();
-      });
+std::unique_ptr<Pass> createUniformityAnalysisPass() {
+  return std::make_unique<UniformityAnalysisPass>();
 }
 
 } // namespace standalone

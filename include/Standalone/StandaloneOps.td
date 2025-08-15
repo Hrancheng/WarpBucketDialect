@@ -52,19 +52,74 @@ def Standalone_AddOp : Standalone_Op<"add", [Pure, SameOperandsAndResultType]> {
 def Standalone_WarpReduceOp : Standalone_Op<"warp_reduce", [Pure, SameOperandsAndResultType]> {
   let summary = "Warp-level reduction operation";
   let description = [{
-    The `wb.warp_reduce` operation performs a reduction across all threads in a warp.
+    The `standalone.warp_reduce` operation performs a reduction across all threads in a warp.
     Supported reduction kinds: add, mul, min, max, and, or, xor.
     The width attribute specifies the warp size (32 for NVVM, 64 for ROCDL).
   }];
-
   let arguments = (ins AnyType:$value);
   let results = (outs AnyType:$result);
-
   let assemblyFormat = [{
     $value attr-dict `:` type($result)
   }];
-
   let hasVerifier = 1;
+}
+
+// Temporarily commented out due to type constraints - will implement later
+// def Standalone_MaskedLoadOp : Standalone_Op<"masked_load", [Pure]> {
+//   let summary = "Masked memory load operation";
+//   let description = [{
+//     The `standalone.masked_load` operation loads a value from memory only when the mask is true.
+//     This is used for if-conversion of short rows to avoid divergent memory access.
+//   }];
+//   let arguments = (ins AnyType:$memref, AnyType:$indices, I1:$mask, AnyType:$passthrough);
+//   let results = (outs AnyType:$result);
+//   let assemblyFormat = "$memref `[` $indices `]` `,` $mask `,` $passthrough attr-dict `:` type($result)";
+//   let hasVerifier = 1;
+// }
+
+// def Standalone_MaskedStoreOp : Standalone_Op<"masked_store", []> {
+//   let summary = "Masked memory store operation";
+//   let description = [{
+//     The `standalone.masked_store` operation stores a value to memory only when the mask is true.
+//     This is used for if-conversion of short rows to avoid divergent memory access.
+//   }];
+//   let arguments = (ins AnyType:$value, AnyType:$memref, AnyType:$indices, I1:$mask);
+//   let assemblyFormat = "$value `,` $memref `[` $indices `]` `,` $mask attr-dict";
+//   let hasVerifier = 1;
+// }
+
+def Standalone_WarpStrideLoopOp : Standalone_Op<"warp_stride_loop", []> {
+  let summary = "Warp-stride loop operation";
+  let description = [{
+    The `standalone.warp_stride_loop` operation implements a loop where each thread in a warp
+    processes elements with stride equal to warp size. This is used for long rows (len > T).
+  }];
+  let arguments = (ins Index:$start, Index:$end, Index:$warp_size);
+  let results = (outs);
+  let regions = (region AnyRegion:$body);
+  let assemblyFormat = "$start `,` $end `,` $warp_size attr-dict-with-keyword $body";
+  let hasVerifier = 1;
+}
+
+def Standalone_UniformBranchOp : Standalone_Op<"uniform_branch", []> {
+  let summary = "Uniform branching operation";
+  let description = [{
+    The `standalone.uniform_branch` operation implements uniform branching within a kernel.
+    All threads in a warp follow the same path, avoiding divergence.
+  }];
+  let arguments = (ins I1:$condition);
+  let results = (outs);
+  let regions = (region AnyRegion:$body);
+  let assemblyFormat = "$condition $body attr-dict";
+  let hasVerifier = 1;
+}
+
+def Standalone_YieldOp : Standalone_Op<"yield", [Terminator]> {
+  let summary = "Yield operation for standalone dialect";
+  let description = [{
+    The `standalone.yield` operation yields values from regions.
+  }];
+  let arguments = (ins Variadic<AnyType>:$operands);
 }
 
 #endif // STANDALONE_OPS

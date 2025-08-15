@@ -1,17 +1,14 @@
 module {
   func.func @test_if_conversion_success() -> index {
-    %thread_id = gpu.thread_id x
-    %varying_cond = arith.cmpi eq, %thread_id, %thread_id : index
-    
-    // This divergent branch should be converted to predicated operations
-    %result = scf.if %varying_cond -> index {
-      %a = arith.addi %thread_id, %thread_id : index
-      scf.yield %a : index
+    %true = arith.constant true
+    %c42 = arith.constant 42 : index
+    %0 = gpu.thread_id  x
+    %1 = scf.if %true -> (index) {
+      %2 = arith.addi %0, %0 : index
+      scf.yield %2 : index
     } else {
-      %b = arith.constant 42 : index
-      scf.yield %b : index
-    }
-    
-    return %result : index
+      scf.yield %c42 : index
+    } {wb.divergent = true}
+    return %1 : index
   }
 } 

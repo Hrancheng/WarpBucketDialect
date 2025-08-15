@@ -77,46 +77,12 @@ struct LowerStandaloneToArithPass
 
 } // namespace
 
+namespace mlir {
+namespace standalone {
+
 std::unique_ptr<mlir::Pass> createLowerStandaloneToArithPass() {
   return std::make_unique<LowerStandaloneToArithPass>();
 }
 
-// 注册到 pass 管理器（这样 wb-opt/standalone-opt 能识别 --standalone-lower）
-//static PassRegistration<LowerStandaloneToArithPass> reg;
-namespace mlir {
-    namespace standalone {
-    
-    void registerStandalonePasses() {
-      // 运行时注册：为 pass 提供工厂、选项名和描述
-      ::mlir::registerPass(
-          []() -> std::unique_ptr<::mlir::Pass> {
-            return createLowerStandaloneToArithPass();
-          });
-      
-      // Register the new GPU lowering pass
-      ::mlir::registerPass(
-          []() -> std::unique_ptr<::mlir::Pass> {
-            return createLowerArithToGPUPass();
-          });
-      
-      // Register the uniformity analysis pass
-      ::mlir::registerPass(
-          []() -> std::unique_ptr<::mlir::Pass> {
-            return createUniformityAnalysisPass();
-          });
-      
-      // Register the if-conversion pass
-      ::mlir::registerPass(
-          []() -> std::unique_ptr<::mlir::Pass> {
-            return createIfConversionPass();
-          });
-      
-      // Register the warp reduction lowering pass
-      ::mlir::registerPass(
-          []() -> std::unique_ptr<::mlir::Pass> {
-            return createLowerWarpReduceToGPUPass();
-          });
-    }
-    
-    } // namespace standalone
-    } // namespace mlir
+} // namespace standalone
+} // namespace mlir

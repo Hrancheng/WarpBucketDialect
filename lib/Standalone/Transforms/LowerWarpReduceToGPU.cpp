@@ -29,20 +29,76 @@ struct WarpReduceToShufflePattern : public OpRewritePattern<WarpReduceOp> {
     Location loc = op.getLoc();
     Value input = op.getValue();
     
-    // For now, we'll use a simple approach - just create a gpu.shuffle operation
-    // In a full implementation, we'd implement the tree-based reduction algorithm
+    // Get reduction kind and width from attributes (default to "add" and 32)
+    StringAttr kindAttr = op->getAttrOfType<StringAttr>("kind");
+    StringRef reductionKind = kindAttr ? kindAttr.getValue() : "add";
     
-    // Create a simple shuffle operation (this is a placeholder)
-    // In practice, we'd implement the full reduction algorithm
-    auto shuffleOp = rewriter.create<gpu::ShuffleOp>(
-        loc, input, 0, 32, gpu::ShuffleMode::DOWN);
+    IntegerAttr widthAttr = op->getAttrOfType<IntegerAttr>("width");
+    int warpSize = widthAttr ? widthAttr.getInt() : 32;
     
-    // Get the result value from the shuffle operation
-    Value result = shuffleOp.getResult(0);
+    // Calculate number of reduction steps (log2 of warp size)
+    int tempSize = warpSize;
+    while (tempSize > 1) {
+      tempSize >>= 1;
+    }
     
-    // Replace the original operation
-    rewriter.replaceOp(op, result);
+    // Start with the input value
+    Value currentValue = input;
+    
+    // Implement tree-based reduction algorithm
+    for (int step = 1; step < warpSize; step <<= 1) {
+      // Create shuffle operation for this step
+      Value stepValue = rewriter.create<arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(step));
+      Value warpSizeValue = rewriter.create<arith::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(warpSize));
+      
+      auto shuffleOp = rewriter.create<gpu::ShuffleOp>(
+          loc, currentValue, stepValue, warpSizeValue, gpu::ShuffleMode::DOWN);
+      
+      // Combine the current value with the shuffled value based on reduction kind
+      Value shuffledValue = shuffleOp.getResult(0);
+      currentValue = createReductionOp(rewriter, loc, currentValue, shuffledValue, reductionKind);
+    }
+    
+    // Replace the original operation with the final result
+    rewriter.replaceOp(op, currentValue);
     return success();
+  }
+
+private:
+  // Helper function to create the appropriate reduction operation
+  Value createReductionOp(PatternRewriter &rewriter, Location loc, Value a, Value b, StringRef kind) const {
+    if (kind == "add") {
+      if (a.getType().isInteger(32) || a.getType().isInteger(64)) {
+        return rewriter.create<arith::AddIOp>(loc, a, b);
+      } else {
+        return rewriter.create<arith::AddFOp>(loc, a, b);
+      }
+    } else if (kind == "mul") {
+      if (a.getType().isInteger(32) || a.getType().isInteger(64)) {
+        return rewriter.create<arith::MulIOp>(loc, a, b);
+      } else {
+        return rewriter.create<arith::MulFOp>(loc, a, b);
+      }
+    } else if (kind == "and") {
+      if (a.getType().isInteger(32) || a.getType().isInteger(64)) {
+        return rewriter.create<arith::AndIOp>(loc, a, b);
+      }
+    } else if (kind == "or") {
+      if (a.getType().isInteger(32) || a.getType().isInteger(64)) {
+        return rewriter.create<arith::OrIOp>(loc, a, b);
+      }
+    } else if (kind == "xor") {
+      if (a.getType().isInteger(32) || a.getType().isInteger(64)) {
+        return rewriter.create<arith::XOrIOp>(loc, a, b);
+      }
+    }
+    
+    // Default to addition if kind is not recognized
+    if (a.getType().isInteger(32) || a.getType().isInteger(64)) {
+      return rewriter.create<arith::AddIOp>(loc, a, b);
+    } else {
+      return rewriter.create<arith::AddFOp>(loc, a, b);
+    }
   }
 };
 
@@ -52,6 +108,11 @@ struct LowerWarpReduceToGPUPass : public PassWrapper<LowerWarpReduceToGPUPass, O
 
   StringRef getArgument() const override { return "lower-warp-reduce-to-gpu"; }
   StringRef getDescription() const override { return "Lower warp reduce operations to GPU shuffle operations"; }
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<gpu::GPUDialect>();
+    registry.insert<arith::ArithDialect>();
+  }
 
   void runOnOperation() override {
     ModuleOp module = getOperation();
@@ -71,17 +132,12 @@ struct LowerWarpReduceToGPUPass : public PassWrapper<LowerWarpReduceToGPUPass, O
 
 } // namespace
 
+namespace mlir {
+namespace standalone {
+
 std::unique_ptr<Pass> createLowerWarpReduceToGPUPass() {
   return std::make_unique<LowerWarpReduceToGPUPass>();
 }
 
-namespace mlir {
-namespace standalone {
-void registerLowerWarpReduceToGPUPass() {
-  ::mlir::registerPass(
-      []() -> std::unique_ptr<::mlir::Pass> {
-        return createLowerWarpReduceToGPUPass();
-      });
-}
 } // namespace standalone
 } // namespace mlir 

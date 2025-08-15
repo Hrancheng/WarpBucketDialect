@@ -72,18 +72,11 @@ struct LowerArithToGPUPass
 
 } // namespace
 
-std::unique_ptr<mlir::Pass> createLowerArithToGPUPass() {
-  return std::make_unique<LowerArithToGPUPass>();
-}
-
 namespace mlir {
 namespace standalone {
 
-void registerArithToGPUPass() {
-  ::mlir::registerPass(
-      []() -> std::unique_ptr<::mlir::Pass> {
-        return createLowerArithToGPUPass();
-      });
+std::unique_ptr<mlir::Pass> createLowerArithToGPUPass() {
+  return std::make_unique<LowerArithToGPUPass>();
 }
 
 } // namespace standalone
